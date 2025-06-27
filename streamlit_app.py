@@ -211,15 +211,17 @@ st.set_page_config(page_title="Gerador de KMZ e GeoJSON", layout="centered")
 st.title("Gerador de KMZ e GeoJSON para Setores de Estações")
 st.markdown("Faça upload de um arquivo CSV ou Excel com as colunas necessárias.")
 
+distancia_km_default = DISTANCIA_KM
+
 with st.form("params_form"):
     uploaded_file = st.file_uploader("Arquivo de entrada (CSV/Excel)", type=["csv", "xlsx", "xls"])
     col1, col2 = st.columns(2)
     with col1:
-        raio_circulo_metros = st.number_input("Raio do Círculo (m)", min_value=1, max_value=500, value=40, step=1)
-        distancia_km = st.number_input("Distância padrão do setor (km)", min_value=0.1, max_value=10.0, value=DISTANCIA_KM, step=0.1)
+        raio_circulo_metros = st.number_input("Raio do Círculo (m)", min_value=1, max_value=500, value=RAIO_CIRCULO_METROS, step=1)
+        distancia_km = st.number_input("Distância padrão do setor (km)", min_value=0.1, max_value=10.0, value=distancia_km_default, step=0.1)
     with col2:
-        setor_angulo = st.number_input("Ângulo do Setor (graus)", min_value=1, max_value=180, value=30, step=1)
-        opacidade_percentual = st.slider("Opacidade (%)", min_value=0, max_value=100, value=60)
+        setor_angulo = st.number_input("Ângulo do Setor (graus)", min_value=1, max_value=180, value=SETOR_ANGULO, step=1)
+        opacidade_percentual = st.slider("Opacidade (%)", min_value=0, max_value=100, value=OPACIDADE_PERCENTUAL)
     submitted = st.form_submit_button("Gerar Arquivos")
 
 if submitted and uploaded_file:
@@ -227,7 +229,7 @@ if submitted and uploaded_file:
         try:
             kmz_path, geojson_path = process_file(
                 uploaded_file,
-                distancia_km,  # Agora usa o valor configurado pelo usuário
+                distancia_km,  # Usa o valor configurado pelo usuário
                 setor_angulo,
                 raio_circulo_metros,
                 opacidade_percentual
