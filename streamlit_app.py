@@ -209,7 +209,7 @@ def process_file(input_file, distancia_km, setor_angulo, raio_circulo_metros, op
     output_geojson_path = os.path.join(temp_dir, OUTPUT_GEOJSON)
     kml.savekmz(output_kmz_path, format=False)
     gdf = gpd.GeoDataFrame.from_features(geojson_features)
-    gdf.crs = "EPSG:31983"
+    gdf.crs = "EPSG:4326"  # Corrigido para WGS84 padrão
     gdf.to_file(output_geojson_path, driver="GeoJSON")
     return output_kmz_path, output_geojson_path
 
