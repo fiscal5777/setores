@@ -9,12 +9,27 @@ import colorsys
 import tempfile
 
 # --- CONFIGURAÇÕES PADRÃO ---
-DISTANCIA_KM = 1.5
+DISTANCIA_KM = 1.5  # Agora será configurável na interface
 SETOR_ANGULO = 30
 RAIO_CIRCULO_METROS = 40
 OPACIDADE_PERCENTUAL = 60
 OUTPUT_KMZ = "setores_estacoes.kmz"
 OUTPUT_GEOJSON = "setores_estacoes.geojson"
+
+# Fatores proporcionais por faixa
+FAIXA_FATORES = {
+    450: 1.0,    # 1.5 / 1.5
+    700: 1.4/1.5,
+    850: 1.3/1.5,
+    900: 1.2/1.5,
+    1800: 1.1/1.5,
+    2100: 1.0/1.5,
+    2300: 0.9/1.5,
+    2500: 0.8/1.5,
+    2600: 0.7/1.5,
+    3500: 0.6/1.5,
+    4900: 0.5/1.5
+}
 
 # --- FUNÇÕES AUXILIARES ---
 def calcular_pontos(lat, lon, azimute1, azimute2, distancia_km):
@@ -146,30 +161,8 @@ def process_file(input_file, distancia_km, setor_angulo, raio_circulo_metros, op
                     freq_row = row['FreqTxMHz']
                     tecnologia = row['Tecnologia']
                     faixa = faixas(freq_row)
-                    if (faixa) == 450:
-                        distancia_km_setor = 1.5
-                    elif (faixa) == 700:
-                        distancia_km_setor = 1.4
-                    elif (faixa) == 850:
-                        distancia_km_setor = 1.3
-                    elif  (faixa) == 900:
-                        distancia_km_setor = 1.2
-                    elif  (faixa) == 1800:
-                        distancia_km_setor = 1.1
-                    elif  (faixa) == 2100:
-                        distancia_km_setor = 1
-                    elif  (faixa) == 2300:
-                        distancia_km_setor = 0.9
-                    elif  (faixa) == 2500:
-                        distancia_km_setor = 0.8
-                    elif  (faixa) == 2600:
-                        distancia_km_setor = 0.7
-                    elif  (faixa) == 3500:
-                        distancia_km_setor = 0.6
-                    elif  (faixa) == 4900:
-                        distancia_km_setor = 0.5
-                    else:
-                        distancia_km_setor = distancia_km
+                    fator = FAIXA_FATORES.get(faixa, 1.0)
+                    distancia_km_setor = distancia_km * fator
                     pts = calcular_pontos(lat, lon, az - setor_angulo, az + setor_angulo, distancia_km=distancia_km_setor)
                     cor_kml = get_color(freq_row)
                     cor_com_alpha = simplekml.Color.changealphaint(ALPHA, cor_kml)
@@ -223,6 +216,7 @@ with st.form("params_form"):
     col1, col2 = st.columns(2)
     with col1:
         raio_circulo_metros = st.number_input("Raio do Círculo (m)", min_value=1, max_value=500, value=40, step=1)
+        distancia_km = st.number_input("Distância padrão do setor (km)", min_value=0.1, max_value=10.0, value=DISTANCIA_KM, step=0.1)
     with col2:
         setor_angulo = st.number_input("Ângulo do Setor (graus)", min_value=1, max_value=180, value=30, step=1)
         opacidade_percentual = st.slider("Opacidade (%)", min_value=0, max_value=100, value=60)
@@ -233,7 +227,7 @@ if submitted and uploaded_file:
         try:
             kmz_path, geojson_path = process_file(
                 uploaded_file,
-                0.5,  # Valor fixo para distância do setor (padrão 0.5 km)
+                distancia_km,  # Agora usa o valor configurado pelo usuário
                 setor_angulo,
                 raio_circulo_metros,
                 opacidade_percentual
