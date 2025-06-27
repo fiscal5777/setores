@@ -1,0 +1,6 @@
+streamlit
+pandas
+simplekml
+geopandas
+shapely
+openpyxl
