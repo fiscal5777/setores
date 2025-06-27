@@ -9,7 +9,7 @@ import colorsys
 import tempfile
 
 # --- CONFIGURAÇÕES PADRÃO ---
-DISTANCIA_KM = 0.5
+DISTANCIA_KM = 1.5
 SETOR_ANGULO = 30
 RAIO_CIRCULO_METROS = 40
 OPACIDADE_PERCENTUAL = 60
@@ -222,7 +222,6 @@ with st.form("params_form"):
     uploaded_file = st.file_uploader("Arquivo de entrada (CSV/Excel)", type=["csv", "xlsx", "xls"])
     col1, col2 = st.columns(2)
     with col1:
-        distancia_km = st.number_input("Distância do Setor (km)", min_value=0.1, max_value=10.0, value=0.5, step=0.1)
         raio_circulo_metros = st.number_input("Raio do Círculo (m)", min_value=1, max_value=500, value=40, step=1)
     with col2:
         setor_angulo = st.number_input("Ângulo do Setor (graus)", min_value=1, max_value=180, value=30, step=1)
@@ -234,7 +233,7 @@ if submitted and uploaded_file:
         try:
             kmz_path, geojson_path = process_file(
                 uploaded_file,
-                distancia_km,
+                0.5,  # Valor fixo para distância do setor (padrão 0.5 km)
                 setor_angulo,
                 raio_circulo_metros,
                 opacidade_percentual
@@ -248,3 +247,4 @@ if submitted and uploaded_file:
             st.error(f"Erro: {e}")
 elif submitted and not uploaded_file:
     st.warning("Por favor, selecione um arquivo de entrada.")
+
