@@ -1,3 +1,4 @@
+# ...existing code...
 import streamlit as st
 import pandas as pd
 import simplekml
@@ -7,6 +8,7 @@ from shapely.geometry import Polygon
 import geopandas as gpd
 import colorsys
 import tempfile
+import csv
 
 # --- CONFIGURAÇÕES PADRÃO ---
 DISTANCIA_KM = 0.5
@@ -18,22 +20,23 @@ OUTPUT_GEOJSON = "setores_estacoes.geojson"
 
 # --- FUNÇÕES AUXILIARES ---
 def calcular_pontos(lat, lon, azimute1, azimute2, distancia_km):
-    R = 6371
+    R = 6371.0  # raio da Terra em km
     azimutes = [azimute1, azimute2]
     pontos = []
+    lat_rad = math.radians(lat)
+    lon_rad = math.radians(lon)
+    d_div_R = distancia_km / R
     for az in azimutes:
         az_rad = math.radians(az)
-        lat_rad = math.radians(lat)
-        lon_rad = math.radians(lon)
-        lat2 = math.asin(math.sin(lat_rad) * math.cos(distancia_km / R) +
-                         math.cos(lat_rad) * math.sin(distancia_km / R) * math.cos(az_rad))
-        lon2 = lon_rad + math.atan2(math.sin(az_rad) * math.sin(distancia_km / R) * math.cos(lat_rad),
-                                    math.cos(distancia_km / R) - math.sin(lat_rad) * math.sin(lat2))
+        lat2 = math.asin(math.sin(lat_rad) * math.cos(d_div_R) +
+                         math.cos(lat_rad) * math.sin(d_div_R) * math.cos(az_rad))
+        lon2 = lon_rad + math.atan2(math.sin(az_rad) * math.sin(d_div_R) * math.cos(lat_rad),
+                                    math.cos(d_div_R) - math.sin(lat_rad) * math.sin(lat2))
         pontos.append((math.degrees(lat2), math.degrees(lon2)))
     return pontos
 
 def gerar_circulo(lat, lon, raio_metros, num_pontos=36):
-    R = 6371000
+    R = 6371000.0
     coords = []
     for i in range(num_pontos):
         angulo = math.radians(float(i) * 360 / num_pontos)
@@ -55,30 +58,30 @@ def get_color(freq):
 
 def faixas(freq):
     freq = float(freq)
-    if freq>=450 and freq <480:
+    if freq >= 450 and freq < 480:
         faixa = 450
-    elif freq>=764 and freq <803:
+    elif freq >= 764 and freq < 803:
         faixa = 700
-    elif freq>=864 and freq <895:
+    elif freq >= 864 and freq < 895:
         faixa = 850
-    elif freq>=943 and freq <960:
+    elif freq >= 943 and freq < 960:
         faixa = 900
-    elif freq>=1800 and freq <1880:
+    elif freq >= 1800 and freq < 1880:
         faixa = 1800
-    elif freq>=2100 and freq <2170:
+    elif freq >= 2100 and freq < 2170:
         faixa = 2100
-    elif freq>=2300 and freq <2400:
-        faixa = 2300  
-    elif freq>=2570 and freq <2620:
+    elif freq >= 2300 and freq < 2400:
+        faixa = 2300
+    elif freq >= 2570 and freq < 2620:
         faixa = 2500
-    elif freq>=2620 and freq <2690:
+    elif freq >= 2620 and freq < 2690:
         faixa = 2600
-    elif freq>=3300 and freq <3700:
+    elif freq >= 3300 and freq < 3700:
         faixa = 3500
-    elif freq>=4830 and freq <4950:
+    elif freq >= 4830 and freq < 4950:
         faixa = 4900
     else:
-        faixa = freq        
+        faixa = freq
     return faixa
 
 def cor_operadora(operadora, alpha):
@@ -95,18 +98,52 @@ def cor_operadora(operadora, alpha):
 def process_file(input_file, distancia_km, setor_angulo, raio_circulo_metros, opacidade_percentual):
     ALPHA = int((opacidade_percentual / 100) * 255)
     REQUIRED_COLUMNS = ['Latitude', 'Longitude', 'Azimute', 'FreqTxMHz', 'NomeEntidade', 'NumEstacao', 'Tecnologia']
-    if input_file.name.lower().endswith('.csv'):
-        df = pd.read_csv(input_file)
+
+    # Leitura robusta para CSV com delimitador '|' (tenta vários encodings/estratégias e ignora linhas problemáticas)
+    if hasattr(input_file, "name") and input_file.name.lower().endswith('.csv'):
+        read_success = False
+        last_err = None
+        for enc in ('utf-8', 'latin1', 'cp1252'):
+            try:
+                input_file.seek(0)
+                df = pd.read_csv(input_file, sep='|', engine='python', encoding=enc, dtype=str, on_bad_lines='warn')
+                read_success = True
+                break
+            except Exception as e:
+                last_err = e
+        if not read_success:
+            try:
+                input_file.seek(0)
+                df = pd.read_csv(input_file, sep='|', engine='python', encoding='utf-8', quoting=csv.QUOTE_NONE, dtype=str, on_bad_lines='warn')
+                read_success = True
+            except Exception as e:
+                raise RuntimeError(f"Falha ao ler CSV com diferentes estratégias. Último erro: {last_err}") from e
     else:
-        df = pd.read_excel(input_file, sheet_name=0)
+        input_file.seek(0)
+        df = pd.read_excel(input_file, sheet_name=0, dtype=str)
+
+    # Normaliza cabeçalhos (remove BOM e espaços)
+    df.columns = df.columns.str.replace('\ufeff', '').str.strip()
+
     if not all(col in df.columns for col in REQUIRED_COLUMNS):
-        raise ValueError("Planilha não possui todas as colunas necessárias.")
-    df = df[REQUIRED_COLUMNS].dropna()
+        raise ValueError("Planilha não possui todas as colunas necessárias. Colunas encontradas: " + ", ".join(df.columns))
+
+    df = df[REQUIRED_COLUMNS].dropna(how='any')
+
+    # Converte Latitude/Longitude para numérico (erros levantam mensagem clara)
+    try:
+        df['Latitude'] = df['Latitude'].astype(float)
+        df['Longitude'] = df['Longitude'].astype(float)
+    except Exception:
+        raise ValueError("Erro ao converter Latitude/Longitude para número. Verifique formato (use ponto decimal).")
+
     df['NomeEntidade'] = df['NomeEntidade'].str.split().str[0].str.upper()
+
     kml = simplekml.Kml()
     kml.document.name = "Setores de Estações"
     kml.document.open = 1
     geojson_features = []
+
     grouped = df.groupby('NomeEntidade')
     for nome_entidade, group_entidade in grouped:
         pasta_entidade = kml.newfolder(name=str(nome_entidade))
@@ -117,8 +154,8 @@ def process_file(input_file, distancia_km, setor_angulo, raio_circulo_metros, op
             estacoes = group_freq['NumEstacao'].unique()
             for estacao_id in estacoes:
                 sub_group = group_freq[group_freq['NumEstacao'] == estacao_id]
-                lat = sub_group.iloc[0]['Latitude']
-                lon = sub_group.iloc[0]['Longitude']
+                lat = float(sub_group.iloc[0]['Latitude'])
+                lon = float(sub_group.iloc[0]['Longitude'])
                 pasta_estacao = pasta_freq.newfolder(name=f"Estação {estacao_id}")
                 coords_circulo = gerar_circulo(lat, lon, raio_circulo_metros)
                 pol_circulo = pasta_estacao.newpolygon(
@@ -245,8 +282,12 @@ if submitted and uploaded_file:
             with open(geojson_path, "rb") as f:
                 st.download_button("Baixar GeoJSON", f, file_name=OUTPUT_GEOJSON)
         except Exception as e:
+            import traceback
             st.error(f"Erro: {e}")
+            st.error(traceback.format_exc())
 elif submitted and not uploaded_file:
     st.warning("Por favor, selecione um arquivo de entrada.")
+# ...existing code...
+
 
 
