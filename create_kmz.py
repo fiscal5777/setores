@@ -96,7 +96,7 @@ def process_file(input_file, distancia_km, setor_angulo, raio_circulo_metros, op
     ALPHA = int((opacidade_percentual / 100) * 255)
     REQUIRED_COLUMNS = ['Latitude', 'Longitude', 'Azimute', 'FreqTxMHz', 'NomeEntidade', 'NumEstacao', 'Tecnologia']
     if input_file.name.lower().endswith('.csv'):
-        df = pd.read_csv(input_file)
+        df = pd.read_csv(input_file, sep="|")
     else:
         df = pd.read_excel(input_file, sheet_name=0)
     if not all(col in df.columns for col in REQUIRED_COLUMNS):
@@ -248,3 +248,4 @@ if submitted and uploaded_file:
             st.error(f"Erro: {e}")
 elif submitted and not uploaded_file:
     st.warning("Por favor, selecione um arquivo de entrada.")
+
